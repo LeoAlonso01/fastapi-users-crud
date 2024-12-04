@@ -1,5 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from config.connectdb import conn
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from models.user import users
 from schemas.user import User
 from cryptography.fernet import Fernet
@@ -11,11 +13,21 @@ unique_key = Fernet(key)
 @user.get("/users")
 async def get_users():
     try:
-        result = conn.execute(users.select()).fetchall()
-        if len(result) == 0:
-            return {"message": "No records found"}
-        elif len(result) > 0:
-            return {"data": dict(result[0])}
+        with conn.connect() as conection:
+            new_user = {
+                "id" : users.c.id,
+                "username": users.c.username,
+                "email": users.c.email,
+                "is_active": users.c.is_active,
+            }
+            new_user["password"] = unique_key.encrypt(user.password.encode("utf-8"))
+            result = conection.execute(users.insert().values(new_user))
+            new_user_id = result.lastrowid
+            conection.commit()
+            return {"message": "User created successfully", "user_id": new_user_id}
+            
+    except SQLAlchemyError as e:
+        return {"error": str(e)}
     except Exception as e:
         return {"error": str(e)}
     
@@ -30,7 +42,9 @@ async def create_users(user: User):
     except Exception as e:
         print(e)
         print(result)
-        return {"error": str(e)} 
+        return {"error": str(e)}
+    finally:
+        conn.close() 
     return result # conn.execute(users.select().where(users.c.id == result.lastrowid)).first()
 
 
