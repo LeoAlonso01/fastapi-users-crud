@@ -14,18 +14,13 @@ unique_key = Fernet(key)
 async def get_users():
     try:
         with conn.connect() as conection:
-            new_user = {
-                "id" : users.c.id,
-                "username": users.c.username,
-                "email": users.c.email,
-                "is_active": users.c.is_active,
-            }
-            new_user["password"] = unique_key.encrypt(user.password.encode("utf-8"))
-            result = conection.execute(users.insert().values(new_user))
-            new_user_id = result.lastrowid
-            conection.commit()
-            return {"message": "User created successfully", "user_id": new_user_id}
-            
+            query = users.select()
+            result = conection.execute(query)
+            if result is None:
+                return {"error": "No users found"}
+            else:
+                users_list = result.fetchall()
+                return users_list
     except SQLAlchemyError as e:
         return {"error": str(e)}
     except Exception as e:
@@ -35,17 +30,20 @@ async def get_users():
 @user.post("/users")
 async def create_users(user: User):
     try:
-        new_user = {"username": user.username,"email": user.email ,"is_active": user.is_active }
+        new_user = {
+            "username": users.c.username,
+            "email": users.c.email,
+            "is_active": users.c.is_active,
+        }
         new_user["password"] = unique_key.encrypt(user.password.encode("utf-8"))
         result = conn.execute(users.insert().values(new_user))
-        print(new_user)
-    except Exception as e:
-        print(e)
-        print(result)
+        new_user_id = result.lastrowid
+        conn.commit()
+        return {"message": "User created successfully", "user_id": new_user_id}
+    except SQLAlchemyError as e:
         return {"error": str(e)}
-    finally:
-        conn.close() 
-    return result # conn.execute(users.select().where(users.c.id == result.lastrowid)).first()
+    except Exception as e:
+        return {"error": str(e)}
 
 
 
