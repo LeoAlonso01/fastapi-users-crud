@@ -49,6 +49,7 @@ async def create_users(user: User):
 
 
 
+
 @user.get("/users/{user_id}")
 async def read_user(user_id: int):
     return {"username": "Rick"}
